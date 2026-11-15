@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RusEfiTools.Gui/RusEfiTools.Gui.csproj" />
+  </Folder>
+  <Folder Name="/third_party/" />
+  <Folder Name="/third_party/FishGfx/">
+    <Project Path="third_party/FishGfx/FishGfx.FishUI/FishGfx.FishUI.csproj" />
+    <Project Path="third_party/FishGfx/FishGfx/FishGfx.csproj" />
+  </Folder>
+  <Folder Name="/third_party/FishGfx/thirdparty/" />
+  <Folder Name="/third_party/FishGfx/thirdparty/FishUI/">
+    <Project Path="third_party/FishGfx/thirdparty/FishUI/FishUI/FishUI.csproj" />
+  </Folder>
+</Solution>
