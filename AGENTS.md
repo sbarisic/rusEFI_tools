@@ -6,6 +6,13 @@
 - Store all application configuration and data in the application directory itself. Resolve these paths relative to the executable directory, not the current working directory.
 - Do not store configuration or data in OS-managed user directories such as AppData, LocalAppData, the user profile, or other per-user configuration/data folders.
 
+## C# style and maintainability
+
+- Do not use top-level statements in C#. Use explicit types and methods, including a `Program` class with a `Main` method for the application entry point.
+- Format code for human readability with consistent indentation, clear names, and readable spacing. Do not compress code into dense statements.
+- Keep source files small and focused. Treat 1,000 lines as the point to review and split a file, and 2,000 lines as the maximum, not a target or minimum.
+- Redesign and split larger files into smaller, cohesive components with clear responsibilities. Keep the result modular and easy to maintain while preserving this project's simple architecture.
+
 ## FishGfx and FishUI
 
 - We maintain both FishGfx and FishUI. Modify either library when needed.

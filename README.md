@@ -1,12 +1,21 @@
 # rusEFI Tools
 
 A minimal Windows x64 GUI application targeting .NET 10. FishGfx provides
-the window, input, and OpenGL drawing; FishUI provides the two buttons through
+the window, input, and OpenGL drawing; FishUI hosts the telemetry graph through
 the FishGfx.FishUI adapter.
 
-The resizable window opens with **Button 1** and **Button 2** centered in it.
-Clicking a button updates its label with its click count. The buttons stack
-vertically when the window becomes narrow.
+The resizable window opens at 1920 × 1080 with a dark telemetry graph showing
+generated sample MAP, RPM, and TPS data. MAP and TPS share the left axis;
+RPM uses the right axis. Drag the plot cursor to inspect values in the legend.
+Drag the handles in the overview below the plot to resize the visible time range.
+Drag the middle of the selected range to pan without changing its width. While
+dragging the plot cursor, hold it near either edge to scroll gradually in that
+direction. Scrolling stops when you release the mouse or reach the data boundary.
+This is a sample display, not a live ECU connection or log-file reader.
+
+`DesktopApplication` owns the window and rendering loop, `MainView` sizes the
+graph, `TelemetryGraph` draws and handles interaction, and `SampleTelemetry`
+provides the demonstration channels.
 
 ## Requirements
 
