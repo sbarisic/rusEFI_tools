@@ -17,6 +17,9 @@ public sealed class MlgLogReaderTests
         Assert.Equal(new Vector2(0, 100), log.Channels[0].Series.Points[0]);
         Assert.Equal(new Vector2(1, 3000), log.Channels[1].Series.Points[1]);
         Assert.Equal(50, log.Channels[2].Series.Points[0].Y);
+        Assert.Equal(4, log.Sensors.Fields.Count);
+        Assert.Equal(100, log.Sensors.ValueAt(0, 0));
+        Assert.Equal(3000, log.Sensors.ValueAt(log.Sensors.FindNearest(0.8f), 2));
     }
 
     [Fact]

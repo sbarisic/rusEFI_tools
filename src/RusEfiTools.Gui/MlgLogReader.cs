@@ -7,7 +7,7 @@ using FishUI.Controls;
 
 namespace RusEfiTools.Gui;
 
-internal sealed record LoadedLog(TelemetryChannel[] Channels, int Samples, int Fields, int Markers);
+internal sealed record LoadedLog(TelemetryChannel[] Channels, int Samples, int Fields, int Markers, SensorLogData Sensors);
 
 internal static class MlgLogReader
 {
@@ -69,7 +69,7 @@ internal static class MlgLogReader
                 _ => throw new InvalidDataException($"Unsupported MLG field type {type}.")
             };
             fields.Add(new Field(Text(descriptor.AsSpan(1, 34)), Text(descriptor.AsSpan(35, 10)),
-                type, offset, Float(descriptor.AsSpan(46)), Float(descriptor.AsSpan(50))));
+                type, offset, Float(descriptor.AsSpan(46)), Float(descriptor.AsSpan(50)), descriptor[45]));
             offset += size;
         }
         if (offset != recordSize)
@@ -102,6 +102,7 @@ internal static class MlgLogReader
         }).ToArray();
 
         byte[] record = new byte[recordSize + 4];
+        var sensors = new SensorLogData(fields.ToArray(), recordSize);
         byte[] marker = new byte[53];
         double? firstTime = null;
         float previousTime = -1;
@@ -164,6 +165,7 @@ internal static class MlgLogReader
                     series[index].Points.Add(point);
                 }
             }
+            sensors.AddSample(time, payload);
             previousTime = time;
             samples++;
         }
@@ -173,7 +175,8 @@ internal static class MlgLogReader
         }
         var channels = series.Select((data, index) => new TelemetryChannel(data,
             Math.Max(index == 1 ? 8000 : 200, MathF.Ceiling(data.Points.Max(point => point.Y) / 100) * 100), index == 1)).ToArray();
-        return new LoadedLog(channels, samples, count, markers);
+        sensors.Seal();
+        return new LoadedLog(channels, samples, count, markers, sensors);
     }
 
     private static float Float(ReadOnlySpan<byte> bytes) => BinaryPrimitives.ReadSingleBigEndian(bytes);
@@ -184,24 +187,24 @@ internal static class MlgLogReader
         return Encoding.ASCII.GetString(end < 0 ? bytes : bytes[..end]);
     }
 
-    private sealed record Field(string Name, string Units, byte Type, int Offset, float Scale, float Transform)
+    internal sealed record Field(string Name, string Units, byte Type, int Offset, float Scale, float Transform, byte DisplayStyle = 0)
     {
         public double Read(ReadOnlySpan<byte> payload)
         {
             var bytes = payload[Offset..];
             double raw = Type switch
             {
-                0 => bytes[0],
+                0 or 10 => bytes[0],
                 1 => (sbyte)bytes[0],
-                2 => BinaryPrimitives.ReadUInt16BigEndian(bytes),
+                2 or 11 => BinaryPrimitives.ReadUInt16BigEndian(bytes),
                 3 => BinaryPrimitives.ReadInt16BigEndian(bytes),
-                4 => BinaryPrimitives.ReadUInt32BigEndian(bytes),
+                4 or 12 => BinaryPrimitives.ReadUInt32BigEndian(bytes),
                 5 => BinaryPrimitives.ReadInt32BigEndian(bytes),
                 6 => BinaryPrimitives.ReadInt64BigEndian(bytes),
                 7 => Float(bytes),
                 _ => throw new InvalidDataException($"Unsupported scalar channel type {Type}.")
             };
-            return (raw + Transform) * Scale;
+            return Type >= 10 ? raw : (raw + Transform) * Scale;
         }
     }
 }

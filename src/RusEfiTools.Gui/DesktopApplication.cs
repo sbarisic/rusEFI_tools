@@ -8,6 +8,10 @@ namespace RusEfiTools.Gui;
 
 internal sealed class DesktopApplication
 {
+    private readonly ConfigurationLoadResult configuration = AppConfiguration.Load();
+
+    public AppConfiguration Configuration => configuration.Configuration;
+
     public void Run()
     {
         using var window = new RenderWindow(new RenderWindowOptions
@@ -34,6 +38,10 @@ internal sealed class DesktopApplication
         settings.LoadTheme("data/themes/gwen.yaml");
 
         var view = new MainView(ui);
+        if (configuration.Error != null)
+        {
+            view.SetStatus(configuration.Error);
+        }
         using var logLoader = new LogDropLoader(window, view);
         var camera = new Camera();
         Resize(window.Width, window.Height);

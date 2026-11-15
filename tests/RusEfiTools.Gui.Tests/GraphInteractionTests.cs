@@ -7,13 +7,13 @@ namespace RusEfiTools.Gui.Tests;
 public sealed class GraphInteractionTests
 {
     // Headless control input checks: base mouse handlers only log events.
-    // A 1280px-wide control provides a 1000px-wide plot starting at x=78.
+    // A 1090px-wide control provides a 1000px-wide plot starting at x=78.
     private static TelemetryGraph CreateGraph(GraphTimeline timeline, bool overview = false)
     {
         return new TelemetryGraph(SampleTelemetry.Create(), timeline)
         {
             Position = new FishUIPosition(PositionMode.Absolute, Vector2.Zero),
-            Size = new Vector2(1280, 500),
+            Size = new Vector2(1090, 500),
             ShowOverview = overview
         };
     }

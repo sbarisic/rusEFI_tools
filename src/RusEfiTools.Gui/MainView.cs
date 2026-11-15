@@ -14,6 +14,7 @@ internal sealed class MainView
     private readonly Button addButton;
     private readonly Button removeButton;
     private readonly Label status;
+    private readonly CursorDataInspector sensors;
     private int width = 1920;
     private int height = 1080;
 
@@ -31,6 +32,8 @@ internal sealed class MainView
         };
         status.SetColorOverride("Text", new FishColor(224, 230, 237));
         ui.AddControl(status);
+        sensors = new CursorDataInspector(timeline, channels);
+        ui.AddControl(sensors);
         AddGraph();
         AddGraph();
         rows[1].SetChannelVisible(channels[1], false);
@@ -52,6 +55,7 @@ internal sealed class MainView
         channels = log.Channels;
         timeline = new GraphTimeline(channels[0].Series.Points[^1].X);
         timeline.Cursor = 0;
+        sensors.Bind(timeline, channels, log.Sensors);
         foreach (var selection in visibility)
         {
             AddGraph();
@@ -60,7 +64,7 @@ internal sealed class MainView
                 rows[^1].SetChannelVisible(channels[index], selection[index]);
             }
         }
-        SetStatus($"{name} — {log.Samples:N0} samples, {timeline.Duration:0.0} s — MAP / RPM / TPS");
+        SetStatus($"{name} — {log.Samples:N0} samples, {timeline.Duration:0.0} s — {log.Fields:N0} sensor fields");
     }
 
     public void Resize(int width, int height)
@@ -127,6 +131,9 @@ internal sealed class MainView
         }
 
         // Reserve the overview once; all plot areas retain the same height.
+        float panelWidth = Math.Min(440, width * 0.35f);
+        sensors.Position = Absolute(width - panelWidth - 24, 56);
+        sensors.Size = new Vector2(panelWidth, Math.Max(1, height - 80));
         float rowHeight = Math.Max(120, (height - 80 - 112) / (float)rows.Count);
         float top = 56;
         for (int index = 0; index < rows.Count; index++)
@@ -135,7 +142,7 @@ internal sealed class MainView
             bool last = index == rows.Count - 1;
             row.ShowOverview = last;
             row.Position = Absolute(24, top);
-            row.Size = new Vector2(Math.Max(1, width - 48), rowHeight + (last ? 112 : 0));
+            row.Size = new Vector2(Math.Max(1, width - panelWidth - 60), rowHeight + (last ? 112 : 0));
             top += rowHeight;
         }
     }

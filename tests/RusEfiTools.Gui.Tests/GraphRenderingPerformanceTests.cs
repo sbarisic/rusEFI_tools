@@ -47,8 +47,18 @@ public sealed class GraphRenderingPerformanceTests(ITestOutputHelper output)
         var batched = CapturePolyline(true);
         Assert.True(individual.AsSpan().SequenceEqual(batched), "Batched and individual line pixels must match.");
         Assert.True(batched.Any(pixel => pixel != Color.Black), "The comparison must contain rendered pixels.");
-        foreach (string scenario in new[] { "cursor", "resize" })
+        foreach (string scenario in new[] { "cursor", "resize", "inspector" })
         {
+            if (scenario == "inspector")
+            {
+                var inspector = new CursorDataInspector(timeline, log.Channels)
+                {
+                    Position = new FishUIPosition(PositionMode.Absolute, new Vector2(1450, 56)),
+                    Size = new Vector2(440, 1000)
+                };
+                inspector.Bind(timeline, log.Channels, log.Sensors);
+                ui.AddControl(inspector);
+            }
             var times = new List<double>();
             long allocations = 0;
             for (int index = 0; index < 35; index++)

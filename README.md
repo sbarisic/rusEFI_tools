@@ -8,7 +8,7 @@ The resizable window opens at 1920 × 1080 with two stacked telemetry graphs sho
 generated sample MAP, RPM, and TPS data. Use **Add graph** and **Remove last graph**
 to show one to four views. Channel assignments are configured in `MainView`.
 All views share the cursor, visible time range, and a single bottom overview.
-Each channel has color-matched scale limits on the right.
+Each channel has color-matched scale limits inside the plot's right edge.
 Drag the plot cursor to inspect values in the legend.
 Drag the handles in the overview below the plot to resize the visible time range.
 Drag the middle of the selected range to pan without changing its width. While
@@ -18,8 +18,14 @@ Drop one `.mlg` log onto the window to replace the sample data. A `.zip` contain
 exactly one `.mlg` also works without extracting files. The loader supports binary
 [MLVLG v2](https://www.efianalytics.com/TunerStudio/docs/MLG_Binary_LogFormat_2.0.pdf)
 logs with `Time` (seconds), `MAP` (kPa), `RPM` (rpm), and `TPS` (%) fields, including
-the BossECU logs. It plots these three channels; other fields and marker text are
-not displayed yet. There is no live ECU connection.
+the BossECU logs. It plots these three channels. The **Cursor data inspector**
+shows all logged sensor fields at the shared cursor's selected timestamp,
+including fields not plotted. Filter by name or unit and scroll to browse.
+Drag the scrollbar thumb or drag the rows vertically to scroll the inspector.
+Numeric signals are interpolated between samples; flags and other discrete
+display types hold their previous recorded state until the next sample.
+The inspector uses elapsed log time, matching the graphs. Marker text is not
+displayed yet. There is no live ECU connection.
 
 Loading runs in the background. Dropping another log cancels the previous load.
 The status line reports loading, completion, or errors; a failed load leaves the
@@ -27,6 +33,8 @@ current graphs intact. Source files are read only and never copied or modified.
 Checksums and record lengths are validated, and time starts at zero for each log.
 All raw samples of the three plotted channels remain in memory; rendering groups
 samples by screen column while preserving peaks to keep long logs practical.
+Other sensor data is retained in compressed memory blocks and decoded on demand;
+only visible inspector rows are drawn, and values are cached until the cursor moves.
 Reduced samples are shared across views, plot geometry is reused while moving
 the cursor, and each trace is submitted as one FishGfx polyline.
 
@@ -34,6 +42,23 @@ the cursor, and each trace is submitted as one FishGfx polyline.
 graph rows, `TelemetryGraph` draws and handles interaction, `GraphTimeline`
 holds the shared time range and cursor, and `SampleTelemetry` provides the
 demonstration channels.
+
+## Configuration
+
+The application reads `data_app/Config.json` beside the executable at startup.
+The file is included in build and publish output. Missing files, blank files,
+`{}`, and the existing `_comment` placeholder use empty defaults. Invalid JSON
+shows an error in the status line and uses defaults without overwriting the file.
+
+Future log settings belong in a `Logs` object. Its values are retained as JSON
+and available through `DesktopApplication.Configuration.Logs`; no log-setting
+behavior is assigned yet. Restart the application after editing the file.
+
+```json
+{
+  "Logs": {}
+}
+```
 
 ## Requirements
 

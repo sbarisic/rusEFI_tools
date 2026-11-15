@@ -53,11 +53,11 @@ internal sealed class TelemetryGraph : Control
 
     private (Vector2 Position, Vector2 Size) Plot => (
         GetAbsolutePosition() + new Vector2(78, 28),
-        new Vector2(Math.Max(1, ScaledSize.X - 280), Math.Max(1, ScaledSize.Y - (ShowOverview ? 148 : 36))));
+        new Vector2(Math.Max(1, ScaledSize.X - 90), Math.Max(1, ScaledSize.Y - (ShowOverview ? 148 : 36))));
 
     private (Vector2 Position, Vector2 Size) Overview => (
         GetAbsolutePosition() + new Vector2(78, Math.Max(100, ScaledSize.Y - 78)),
-        new Vector2(Math.Max(1, ScaledSize.X - 280), 32));
+        new Vector2(Math.Max(1, ScaledSize.X - 90), 32));
 
     public override void DrawControl(FishUI.FishUI ui, float deltaTime, float time)
     {
@@ -87,8 +87,8 @@ internal sealed class TelemetryGraph : Control
         }
 
         gfx.DrawRectangleOutline(position, size, Grid);
-        DrawChannelScales(ui, position, size);
         DrawCursor(ui, position, size);
+        DrawChannelScales(ui, position, size);
         DrawLegend(ui, position + new Vector2(16, 16));
         if (ShowOverview)
         {
@@ -99,13 +99,22 @@ internal sealed class TelemetryGraph : Control
     private void DrawChannelScales(FishUI.FishUI ui, Vector2 position, Vector2 size)
     {
         int column = 0;
-        foreach (var channel in VisibleChannels.OrderByDescending(channel => channel.RightAxis))
+        var visible = VisibleChannels.OrderByDescending(channel => channel.RightAxis).ToArray();
+        float left = position.X + size.X - visible.Length * 60 - 8;
+        if (visible.Length > 0)
         {
-            float x = position.X + size.X + 12 + column * 60;
-            Label(ui, channel.Series.Name.Split(' ')[0], new Vector2(x, position.Y - 22), color: channel.Series.Color);
+            ui.Graphics.DrawRectangle(new Vector2(left - 4, position.Y + 4),
+                new Vector2(visible.Length * 60 + 8, 36), Background);
+            ui.Graphics.DrawRectangle(new Vector2(left - 4, position.Y + size.Y - 22),
+                new Vector2(visible.Length * 60 + 8, 18), Background);
+        }
+        foreach (var channel in visible)
+        {
+            float x = left + column * 60;
+            Label(ui, channel.Series.Name.Split(' ')[0], new Vector2(x, position.Y + 7), color: channel.Series.Color);
             Label(ui, channel.AxisMaximum.ToString("N0", CultureInfo.InvariantCulture),
-                new Vector2(x, position.Y - 7), color: channel.Series.Color);
-            Label(ui, "0", new Vector2(x, position.Y + size.Y - 7), color: channel.Series.Color);
+                new Vector2(x, position.Y + 23), color: channel.Series.Color);
+            Label(ui, "0", new Vector2(x, position.Y + size.Y - 20), color: channel.Series.Color);
             column++;
         }
     }
