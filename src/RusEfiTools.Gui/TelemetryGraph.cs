@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using FishUI;
 using FishUI.Controls;
+using FishGfx.FishUI;
 
 namespace RusEfiTools.Gui;
 
@@ -12,6 +13,7 @@ internal sealed class TelemetryGraph : Control
     private static readonly FishColor Text = new(224, 230, 237);
     private readonly TelemetryChannel[] channels;
     private readonly GraphTimeline timeline;
+    private readonly GraphPolylineCache polylineCache = new();
     private readonly HashSet<TelemetryChannel> hiddenChannels = [];
     private float duration => timeline.Duration;
     private float start { get => timeline.Start; set => timeline.Start = value; }
@@ -125,7 +127,7 @@ internal sealed class TelemetryGraph : Control
             var channel = visible[index];
             var row = position + new Vector2(12, 10 + index * 22);
             ui.Graphics.DrawLine(row + new Vector2(0, 7), row + new Vector2(26, 7), 3, channel.Series.Color);
-            float? value = channel.Series.GetValueAt(cursor);
+            float? value = GraphSamples.ValueAt(channel.Series.Points, cursor);
             Label(ui, $"{channel.Series.Name}  {value:0.0}", row + new Vector2(36, 0));
         }
     }
@@ -139,7 +141,7 @@ internal sealed class TelemetryGraph : Control
 
         foreach (var channel in VisibleChannels)
         {
-            float? value = channel.Series.GetValueAt(cursor);
+            float? value = GraphSamples.ValueAt(channel.Series.Points, cursor);
             if (!value.HasValue || !float.IsFinite(value.Value))
             {
                 continue;
@@ -162,7 +164,7 @@ internal sealed class TelemetryGraph : Control
         var preview = channels.FirstOrDefault(channel => channel.RightAxis) ?? channels.FirstOrDefault();
         if (preview != null)
         {
-            DrawSeries(ui, preview, position, size, 0, duration, new FishColor(150, 165, 182), 1);
+            DrawSeries(ui, preview, position, size, 0, duration, new FishColor(150, 165, 182), 1, overview: true);
         }
 
         float left = position.X + start / duration * size.X;
@@ -193,30 +195,20 @@ internal sealed class TelemetryGraph : Control
         }
     }
 
-    private static void DrawSeries(FishUI.FishUI ui, TelemetryChannel channel,
-        Vector2 position, Vector2 size, float from, float to, FishColor color, float thickness)
+    private void DrawSeries(FishUI.FishUI ui, TelemetryChannel channel,
+        Vector2 position, Vector2 size, float from, float to, FishColor color, float thickness, bool overview = false)
     {
-        var points = channel.Series.Points;
-        for (int index = 1; index < points.Count; index++)
+        var points = polylineCache.Get(channel, overview, position, size, from, to);
+        if (ui.Graphics is FishUIGraphicsBackend backend)
         {
-            var a = points[index - 1];
-            var b = points[index];
-            if (b.X < from || a.X > to || b.X <= a.X)
-            {
-                continue;
-            }
-
-            float left = Math.Max(from, a.X);
-            float right = Math.Min(to, b.X);
-            float leftValue = a.Y + (b.Y - a.Y) * (left - a.X) / (b.X - a.X);
-            float rightValue = a.Y + (b.Y - a.Y) * (right - a.X) / (b.X - a.X);
-            Vector2 Project(float x, float y) => position + new Vector2(
-                (x - from) / (to - from) * size.X,
-                (1 - Math.Clamp(y / channel.AxisMaximum, 0, 1)) * size.Y);
-            ui.Graphics.DrawLine(Project(left, leftValue), Project(right, rightValue), thickness, color);
+            backend.DrawPolyline(points, thickness, color);
+            return;
+        }
+        for (int index = 1; index < points.Length; index++)
+        {
+            ui.Graphics.DrawLine(points[index - 1], points[index], thickness, color);
         }
     }
-
     private static void Label(FishUI.FishUI ui, string text, Vector2 position, float alignment = 0, FishColor? color = null)
     {
         var font = ui.Settings.FontDefault;

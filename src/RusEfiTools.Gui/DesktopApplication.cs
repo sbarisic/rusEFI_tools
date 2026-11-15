@@ -34,13 +34,14 @@ internal sealed class DesktopApplication
         settings.LoadTheme("data/themes/gwen.yaml");
 
         var view = new MainView(ui);
+        using var logLoader = new LogDropLoader(window, view);
         var camera = new Camera();
         Resize(window.Width, window.Height);
         window.Resized += OnWindowResized;
 
         try
         {
-            RunLoop(window, graphics, input, ui, camera);
+            RunLoop(window, graphics, input, ui, camera, logLoader);
         }
         finally
         {
@@ -70,7 +71,8 @@ internal sealed class DesktopApplication
         FishUIGraphicsBackend graphics,
         FishUIInputAdapter input,
         FishUI.FishUI ui,
-        Camera camera)
+        Camera camera,
+        LogDropLoader logLoader)
     {
         var state = RenderState.Default with
         {
@@ -87,6 +89,7 @@ internal sealed class DesktopApplication
             // Clear old transitions before GLFW queues this frame's input.
             input.BeginFrame();
             window.PollEvents();
+            logLoader.Tick();
 
             if (window.IsCloseRequested)
             {

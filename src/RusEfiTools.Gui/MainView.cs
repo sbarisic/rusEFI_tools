@@ -8,11 +8,12 @@ internal sealed class MainView
 {
     private const int MaximumGraphs = 4;
     private readonly FishUI.FishUI ui;
-    private readonly TelemetryChannel[] channels = SampleTelemetry.Create();
-    private readonly GraphTimeline timeline;
+    private TelemetryChannel[] channels = SampleTelemetry.Create();
+    private GraphTimeline timeline;
     private readonly List<TelemetryGraph> rows = [];
     private readonly Button addButton;
     private readonly Button removeButton;
+    private readonly Label status;
     private int width = 1920;
     private int height = 1080;
 
@@ -22,15 +23,51 @@ internal sealed class MainView
         timeline = new GraphTimeline(channels.SelectMany(channel => channel.Series.Points).Max(point => point.X));
         addButton = CreateButton("Add graph", 24, AddGraph);
         removeButton = CreateButton("Remove last graph", 160, RemoveGraph);
+        status = new Label("Drop an .mlg log or .zip here to load MAP, RPM and TPS")
+        {
+            Position = Absolute(340, 18),
+            Size = new Vector2(1400, 24),
+            Alignment = Align.Left
+        };
+        status.SetColorOverride("Text", new FishColor(224, 230, 237));
+        ui.AddControl(status);
         AddGraph();
         AddGraph();
         rows[1].SetChannelVisible(channels[1], false);
+    }
+
+    public void SetStatus(string message)
+    {
+        status.Text = message;
+    }
+
+    public void Load(LoadedLog log, string name)
+    {
+        var visibility = rows.Select(row => channels.Select(row.IsChannelVisible).ToArray()).ToArray();
+        foreach (var row in rows)
+        {
+            ui.RemoveControl(row);
+        }
+        rows.Clear();
+        channels = log.Channels;
+        timeline = new GraphTimeline(channels[0].Series.Points[^1].X);
+        timeline.Cursor = 0;
+        foreach (var selection in visibility)
+        {
+            AddGraph();
+            for (int index = 0; index < channels.Length; index++)
+            {
+                rows[^1].SetChannelVisible(channels[index], selection[index]);
+            }
+        }
+        SetStatus($"{name} — {log.Samples:N0} samples, {timeline.Duration:0.0} s — MAP / RPM / TPS");
     }
 
     public void Resize(int width, int height)
     {
         this.width = width;
         this.height = height;
+        status.Size = new Vector2(Math.Max(1, width - 364), 24);
         Layout();
     }
 
