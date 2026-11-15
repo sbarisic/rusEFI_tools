@@ -11,10 +11,14 @@ internal sealed class TelemetryGraph : Control
     private static readonly FishColor Grid = new(48, 60, 72);
     private static readonly FishColor Text = new(224, 230, 237);
     private readonly TelemetryChannel[] channels;
-    private readonly float duration;
-    private float start;
-    private float end;
-    private float cursor;
+    private readonly GraphTimeline timeline;
+    private readonly HashSet<TelemetryChannel> hiddenChannels = [];
+    private float duration => timeline.Duration;
+    private float start { get => timeline.Start; set => timeline.Start = value; }
+    private float end { get => timeline.End; set => timeline.End = value; }
+    private float cursor { get => timeline.Cursor; set => timeline.Cursor = value; }
+    public bool ShowOverview { get; set; }
+    private IEnumerable<TelemetryChannel> VisibleChannels => channels.Where(IsChannelVisible);
     private DragTarget dragging;
     private float dragAnchorTime;
     private float dragStart;
@@ -22,40 +26,50 @@ internal sealed class TelemetryGraph : Control
 
     private enum DragTarget { None, Cursor, Start, End, Range }
 
-    public TelemetryGraph(TelemetryChannel[] channels)
+    public TelemetryGraph(TelemetryChannel[] channels, GraphTimeline timeline)
     {
         this.channels = channels;
-        duration = Math.Max(1, channels.SelectMany(channel => channel.Series.Points)
-            .Select(point => point.X).DefaultIfEmpty(40).Max());
-        end = duration;
-        cursor = duration * 0.55f;
+        this.timeline = timeline;
+    }
+
+    public bool IsChannelVisible(TelemetryChannel channel)
+    {
+        return !hiddenChannels.Contains(channel);
+    }
+
+    public void SetChannelVisible(TelemetryChannel channel, bool visible)
+    {
+        if (visible)
+        {
+            hiddenChannels.Remove(channel);
+        }
+        else
+        {
+            hiddenChannels.Add(channel);
+        }
     }
 
     private (Vector2 Position, Vector2 Size) Plot => (
-        GetAbsolutePosition() + new Vector2(78, 64),
-        new Vector2(Math.Max(1, ScaledSize.X - 176), Math.Max(1, ScaledSize.Y - 220)));
+        GetAbsolutePosition() + new Vector2(78, 28),
+        new Vector2(Math.Max(1, ScaledSize.X - 280), Math.Max(1, ScaledSize.Y - (ShowOverview ? 148 : 36))));
 
     private (Vector2 Position, Vector2 Size) Overview => (
         GetAbsolutePosition() + new Vector2(78, Math.Max(100, ScaledSize.Y - 78)),
-        new Vector2(Math.Max(1, ScaledSize.X - 176), 58));
+        new Vector2(Math.Max(1, ScaledSize.X - 280), 32));
 
     public override void DrawControl(FishUI.FishUI ui, float deltaTime, float time)
     {
-        base.DrawControl(ui, deltaTime, time);
+        // The base implementation draws a debug hover/selection outline.
         var gfx = ui.Graphics;
         var (position, size) = Plot;
         gfx.DrawRectangle(GetAbsolutePosition(), ScaledSize, Background);
-        Label(ui, "ENGINE TELEMETRY  /  SAMPLE DATA", GetAbsolutePosition() + new Vector2(78, 8));
-        Label(ui, "MAP (kPa) / TPS (%)", position + new Vector2(0, -28));
-        Label(ui, "RPM (rpm)", position + new Vector2(size.X, -28), 1);
 
-        for (int index = 0; index <= 10; index++)
+        int divisions = size.Y < 260 ? 4 : 10;
+        for (int index = 0; index <= divisions; index++)
         {
-            float fraction = index / 10f;
+            float fraction = (float)index / divisions;
             float y = position.Y + size.Y * (1 - fraction);
             gfx.DrawLine(new Vector2(position.X, y), new Vector2(position.X + size.X, y), 1, Grid);
-            Label(ui, (fraction * 200).ToString("0", CultureInfo.InvariantCulture),
-                new Vector2(position.X - 12, y - 7), 1);
         }
 
         for (int index = 0; index <= 8; index++)
@@ -63,32 +77,53 @@ internal sealed class TelemetryGraph : Control
             float fraction = index / 8f;
             float x = position.X + fraction * size.X;
             gfx.DrawLine(new Vector2(x, position.Y), new Vector2(x, position.Y + size.Y), 1, Grid);
-            Label(ui, (start + fraction * (end - start)).ToString("0.0", CultureInfo.InvariantCulture),
-                new Vector2(x, position.Y + size.Y + 12), 0.5f);
-            Label(ui, (fraction * 8000).ToString("N0", CultureInfo.InvariantCulture),
-                new Vector2(position.X + size.X + 12, position.Y + size.Y * (1 - fraction) - 7));
         }
 
-        foreach (var channel in channels)
+        foreach (var channel in VisibleChannels)
         {
             DrawSeries(ui, channel, position, size, start, end, channel.Series.Color, 2);
         }
 
         gfx.DrawRectangleOutline(position, size, Grid);
-        Label(ui, "Time (s)", position + new Vector2(size.X / 2, size.Y + 38), 0.5f);
+        DrawChannelScales(ui, position, size);
         DrawCursor(ui, position, size);
         DrawLegend(ui, position + new Vector2(16, 16));
-        DrawOverview(ui);
+        if (ShowOverview)
+        {
+            DrawOverview(ui);
+        }
+    }
+
+    private void DrawChannelScales(FishUI.FishUI ui, Vector2 position, Vector2 size)
+    {
+        int column = 0;
+        foreach (var channel in VisibleChannels.OrderByDescending(channel => channel.RightAxis))
+        {
+            float x = position.X + size.X + 12 + column * 60;
+            Label(ui, channel.Series.Name.Split(' ')[0], new Vector2(x, position.Y - 22), color: channel.Series.Color);
+            Label(ui, channel.AxisMaximum.ToString("N0", CultureInfo.InvariantCulture),
+                new Vector2(x, position.Y - 7), color: channel.Series.Color);
+            Label(ui, "0", new Vector2(x, position.Y + size.Y - 7), color: channel.Series.Color);
+            column++;
+        }
     }
 
     private void DrawLegend(FishUI.FishUI ui, Vector2 position)
     {
-        ui.Graphics.DrawRectangle(position, new Vector2(240, 94), new FishColor(22, 29, 38, 240));
-        ui.Graphics.DrawRectangleOutline(position, new Vector2(240, 94), Grid);
-        for (int index = 0; index < channels.Length; index++)
+        var visible = VisibleChannels.ToArray();
+        if (visible.Length == 0)
         {
-            var channel = channels[index];
-            var row = position + new Vector2(12, 14 + index * 26);
+            Label(ui, "No channels configured for this view.", position);
+            return;
+        }
+
+        var legendSize = new Vector2(240, 16 + visible.Length * 22);
+        ui.Graphics.DrawRectangle(position, legendSize, new FishColor(22, 29, 38, 240));
+        ui.Graphics.DrawRectangleOutline(position, legendSize, Grid);
+        for (int index = 0; index < visible.Length; index++)
+        {
+            var channel = visible[index];
+            var row = position + new Vector2(12, 10 + index * 22);
             ui.Graphics.DrawLine(row + new Vector2(0, 7), row + new Vector2(26, 7), 3, channel.Series.Color);
             float? value = channel.Series.GetValueAt(cursor);
             Label(ui, $"{channel.Series.Name}  {value:0.0}", row + new Vector2(36, 0));
@@ -102,7 +137,7 @@ internal sealed class TelemetryGraph : Control
         ui.Graphics.DrawLine(new Vector2(x - 5, position.Y - 8), new Vector2(x, position.Y), 2, Text);
         ui.Graphics.DrawLine(new Vector2(x + 5, position.Y - 8), new Vector2(x, position.Y), 2, Text);
 
-        foreach (var channel in channels)
+        foreach (var channel in VisibleChannels)
         {
             float? value = channel.Series.GetValueAt(cursor);
             if (!value.HasValue || !float.IsFinite(value.Value))
@@ -118,7 +153,6 @@ internal sealed class TelemetryGraph : Control
             ui.Graphics.DrawCircle(center, 4, channel.Series.Color);
         }
 
-        Label(ui, $"{cursor:0.00} s", position + new Vector2(size.X / 2, -28), 0.5f);
     }
 
     private void DrawOverview(FishUI.FishUI ui)
@@ -142,8 +176,21 @@ internal sealed class TelemetryGraph : Control
             ui.Graphics.DrawRectangle(new Vector2(x - 4, position.Y + 7), new Vector2(8, size.Y - 14),
                 new FishColor(150, 195, 250));
         }
-        Label(ui, "Drag handles to resize; drag the selection to pan. Hold the plot cursor near an edge to scroll.",
+        Label(ui, $"Time (s)    Cursor: {cursor:0.00} s    View: {start:0.00} - {end:0.00} s",
             position + new Vector2(0, -22));
+
+        float cursorX = position.X + cursor / duration * size.X;
+        ui.Graphics.DrawLine(new Vector2(cursorX, position.Y),
+            new Vector2(cursorX, position.Y + size.Y), 1, Text);
+        for (int index = 0; index <= 8; index++)
+        {
+            float fraction = index / 8f;
+            float x = position.X + fraction * size.X;
+            float bottom = position.Y + size.Y;
+            ui.Graphics.DrawLine(new Vector2(x, bottom), new Vector2(x, bottom + 5), 1, Text);
+            Label(ui, (fraction * duration).ToString("0.0", CultureInfo.InvariantCulture),
+                new Vector2(x, bottom + 10), 0.5f);
+        }
     }
 
     private static void DrawSeries(FishUI.FishUI ui, TelemetryChannel channel,
@@ -170,7 +217,7 @@ internal sealed class TelemetryGraph : Control
         }
     }
 
-    private static void Label(FishUI.FishUI ui, string text, Vector2 position, float alignment = 0)
+    private static void Label(FishUI.FishUI ui, string text, Vector2 position, float alignment = 0, FishColor? color = null)
     {
         var font = ui.Settings.FontDefault;
         if (font == null)
@@ -178,7 +225,7 @@ internal sealed class TelemetryGraph : Control
             return;
         }
         position.X -= ui.Graphics.MeasureText(font, text).X * alignment;
-        ui.Graphics.DrawTextColor(font, text, position, Text);
+        ui.Graphics.DrawTextColor(font, text, position, color ?? Text);
     }
 
     public override void HandleMousePress(FishUI.FishUI ui, FishInputState state, FishMouseButton button, Vector2 position)
@@ -198,7 +245,7 @@ internal sealed class TelemetryGraph : Control
         bool overviewHeight = position.Y >= overviewPosition.Y
             && position.Y <= overviewPosition.Y + overviewSize.Y;
 
-        if (overviewHeight && position.X >= left - handleHitRadius && position.X <= right + handleHitRadius)
+        if (ShowOverview && overviewHeight && position.X >= left - handleHitRadius && position.X <= right + handleHitRadius)
         {
             float leftDistance = Math.Abs(position.X - left);
             float rightDistance = Math.Abs(position.X - right);

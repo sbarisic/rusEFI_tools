@@ -4,8 +4,11 @@ A minimal Windows x64 GUI application targeting .NET 10. FishGfx provides
 the window, input, and OpenGL drawing; FishUI hosts the telemetry graph through
 the FishGfx.FishUI adapter.
 
-The resizable window opens at 1920 × 1080 with a dark telemetry graph showing
-generated sample MAP, RPM, and TPS data. MAP and TPS share the left axis;
+The resizable window opens at 1920 × 1080 with two stacked telemetry graphs showing
+generated sample MAP, RPM, and TPS data. Use **Add graph** and **Remove last graph**
+to show one to four views. Channel assignments are configured in `MainView`.
+All views share the cursor, visible time range, and a single bottom overview.
+MAP and TPS share the left axis;
 RPM uses the right axis. Drag the plot cursor to inspect values in the legend.
 Drag the handles in the overview below the plot to resize the visible time range.
 Drag the middle of the selected range to pan without changing its width. While
@@ -13,9 +16,10 @@ dragging the plot cursor, hold it near either edge to scroll gradually in that
 direction. Scrolling stops when you release the mouse or reach the data boundary.
 This is a sample display, not a live ECU connection or log-file reader.
 
-`DesktopApplication` owns the window and rendering loop, `MainView` sizes the
-graph, `TelemetryGraph` draws and handles interaction, and `SampleTelemetry`
-provides the demonstration channels.
+`DesktopApplication` owns the window and rendering loop, `MainView` manages the
+graph rows, `TelemetryGraph` draws and handles interaction, `GraphTimeline`
+holds the shared time range and cursor, and `SampleTelemetry` provides the
+demonstration channels.
 
 ## Requirements
 
@@ -29,6 +33,12 @@ provides the demonstration channels.
 git submodule update --init --recursive
 dotnet build RusEfiTools.slnx -c Release
 dotnet run --project src/RusEfiTools.Gui -c Release
+```
+
+Headless graph interaction checks:
+
+```powershell
+dotnet test tests/RusEfiTools.Gui.Tests -c Release
 ```
 
 You can also open `RusEfiTools.slnx` in Visual Studio and set

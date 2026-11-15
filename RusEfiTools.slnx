@@ -2,6 +2,9 @@
   <Folder Name="/src/">
     <Project Path="src/RusEfiTools.Gui/RusEfiTools.Gui.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RusEfiTools.Gui.Tests/RusEfiTools.Gui.Tests.csproj" />
+  </Folder>
   <Folder Name="/third_party/" />
   <Folder Name="/third_party/FishGfx/">
     <Project Path="third_party/FishGfx/FishGfx.FishUI/FishGfx.FishUI.csproj" />
