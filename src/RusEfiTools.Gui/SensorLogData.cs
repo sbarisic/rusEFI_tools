@@ -17,6 +17,7 @@ internal sealed class SensorLogData
 
     public IReadOnlyList<MlgLogReader.Field> Fields { get; }
     public int Count => times.Count;
+    public float Duration => times.Count == 0 ? 0 : times[^1];
 
     public SensorLogData(MlgLogReader.Field[] fields, int recordSize)
     {

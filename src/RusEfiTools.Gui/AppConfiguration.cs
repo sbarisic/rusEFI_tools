@@ -12,6 +12,8 @@ internal sealed class AppConfiguration
     };
 
     // Log-setting names and values can be added without inventing a schema now.
+    public GuiConfiguration Gui { get; init; } = new();
+
     public Dictionary<string, JsonElement> Logs { get; init; } = [];
 
     public static string FilePath => Path.Combine(AppContext.BaseDirectory, "data_app", "Config.json");
@@ -46,6 +48,11 @@ internal sealed class AppConfiguration
         {
             throw new JsonException("Logs must be a JSON object, not null.");
         }
+        if (configuration.Gui == null)
+        {
+            throw new JsonException("Gui must be an object, not null.");
+        }
+        configuration.Gui.Validate();
         return configuration;
     }
 }

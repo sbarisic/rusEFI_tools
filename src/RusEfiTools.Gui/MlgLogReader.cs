@@ -13,7 +13,7 @@ internal static class MlgLogReader
 {
     // EFI Analytics MLVLG v2: 24-byte header, 89-byte field descriptors,
     // big-endian records and an additive payload checksum.
-    public static LoadedLog Load(string path, CancellationToken cancellation = default)
+    public static LoadedLog Load(string path, CancellationToken cancellation = default, IEnumerable<string>? channelNames = null)
     {
         using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
             128 * 1024, FileOptions.SequentialScan);
@@ -26,16 +26,16 @@ internal static class MlgLogReader
                 throw new InvalidDataException("The ZIP must contain exactly one .mlg log.");
             }
             using var stream = entries[0].Open();
-            return Read(stream, cancellation);
+            return Read(stream, cancellation, channelNames);
         }
         if (!Path.GetExtension(path).Equals(".mlg", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("Drop an .mlg file or a ZIP containing one .mlg file.");
         }
-        return Read(file, cancellation);
+        return Read(file, cancellation, channelNames);
     }
 
-    internal static LoadedLog Read(Stream stream, CancellationToken cancellation = default)
+    internal static LoadedLog Read(Stream stream, CancellationToken cancellation = default, IEnumerable<string>? channelNames = null)
     {
         byte[] header = new byte[24];
         stream.ReadExactly(header);
@@ -89,14 +89,17 @@ internal static class MlgLogReader
         Field Find(string name) => fields.FirstOrDefault(field => field.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidDataException($"Required channel '{name}' was not found.");
         var timeField = Find("Time");
-        Field[] selected = [Find("MAP"), Find("RPM"), Find("TPS")];
-        if (timeField.Units != "s" || selected[0].Units != "kPa" || selected[2].Units != "%"
-            || !selected[1].Units.Equals("rpm", StringComparison.OrdinalIgnoreCase))
+        if (timeField.Units != "s")
         {
-            throw new InvalidDataException("Expected Time in seconds, MAP in kPa, RPM in rpm and TPS in percent.");
+            throw new InvalidDataException("Expected Time in seconds.");
         }
-        FishColor[] colors = [new(65, 145, 255), new(255, 78, 78), new(100, 235, 55)];
-        var series = selected.Select((field, index) => new LineChartSeries($"{field.Name} ({field.Units})", colors[index])
+        var names = (channelNames ?? ["MAP", "RPM", "TPS"]).Distinct(StringComparer.OrdinalIgnoreCase);
+        var selected = names.Select(name => fields.FirstOrDefault(field =>
+                field.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            .Where(field => field != null).Cast<Field>().ToArray();
+        FishColor[] colors = [new(65, 145, 255), new(255, 78, 78), new(100, 235, 55), new(255, 200, 87)];
+        var series = selected.Select((field, index) => new LineChartSeries($"{field.Name} ({field.Units})",
+            colors[field.Name.ToUpperInvariant() switch { "MAP" => 0, "RPM" => 1, "TPS" => 2, _ => index % colors.Length }])
         {
             MaxPoints = 0
         }).ToArray();
@@ -174,7 +177,9 @@ internal static class MlgLogReader
             throw new InvalidDataException("The log needs at least two samples with increasing time.");
         }
         var channels = series.Select((data, index) => new TelemetryChannel(data,
-            Math.Max(index == 1 ? 8000 : 200, MathF.Ceiling(data.Points.Max(point => point.Y) / 100) * 100), index == 1)).ToArray();
+            Math.Max(selected[index].Name.Equals("RPM", StringComparison.OrdinalIgnoreCase) ? 8000 : 200,
+                MathF.Ceiling(data.Points.Max(point => point.Y) / 100) * 100),
+            selected[index].Name.Equals("RPM", StringComparison.OrdinalIgnoreCase)) { Name = selected[index].Name }).ToArray();
         sensors.Seal();
         return new LoadedLog(channels, samples, count, markers, sensors);
     }

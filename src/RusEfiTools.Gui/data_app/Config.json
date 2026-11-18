@@ -1,3 +1,27 @@
 {
-	"_comment":  "empty"
+  "Gui": {
+    "Window": { "Width": 1920, "Height": 1080 },
+    "Inspector": { "Visible": true, "Width": 440 },
+    "Graphs": [
+      {
+        "Channels": [
+          { "Name": "RPM", "Color": "#FF4E4E", "Min": 0, "Max": 8000 },
+          { "Name": "MAP", "Color": "#4191FF", "Min": 0, "Max": 200 }
+        ]
+      },
+      {
+        "Channels": [
+          { "Name": "TPS", "Color": "#64EB37", "Min": 0, "Max": 100 },
+          { "Name": "Air: Flow estimate", "Color": "#FFC857", "Min": 0, "Max": 360, "ShowGramsPerSecond": true }
+        ]
+      },
+      {
+        "Channels": [
+          { "Name": "Air/Fuel Ratio", "Color": "#41D9E8", "Min": 10, "Max": 20 },
+          { "Name": "Fuel: target AFR", "Color": "#E98BFF", "Min": 10, "Max": 20 }
+        ]
+      }
+    ]
+  },
+  "Logs": {}
 }

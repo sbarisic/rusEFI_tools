@@ -13,7 +13,9 @@ internal sealed class TelemetryGraph : Control
     private static readonly FishColor Text = new(224, 230, 237);
     private readonly TelemetryChannel[] channels;
     private readonly GraphTimeline timeline;
+    private readonly TelemetryChannel? overviewChannel;
     private readonly GraphPolylineCache polylineCache = new();
+    private readonly GraphLabels labels = new();
     private readonly HashSet<TelemetryChannel> hiddenChannels = [];
     private float duration => timeline.Duration;
     private float start { get => timeline.Start; set => timeline.Start = value; }
@@ -28,10 +30,11 @@ internal sealed class TelemetryGraph : Control
 
     private enum DragTarget { None, Cursor, Start, End, Range }
 
-    public TelemetryGraph(TelemetryChannel[] channels, GraphTimeline timeline)
+    public TelemetryGraph(TelemetryChannel[] channels, GraphTimeline timeline, TelemetryChannel? overviewChannel = null)
     {
         this.channels = channels;
         this.timeline = timeline;
+        this.overviewChannel = overviewChannel ?? channels.FirstOrDefault(channel => channel.RightAxis) ?? channels.FirstOrDefault();
     }
 
     public bool IsChannelVisible(TelemetryChannel channel)
@@ -83,61 +86,16 @@ internal sealed class TelemetryGraph : Control
 
         foreach (var channel in VisibleChannels)
         {
-            DrawSeries(ui, channel, position, size, start, end, channel.Series.Color, 2);
+            DrawSeries(ui, channel, position, size, start, end, channel.Color, 2);
         }
 
         gfx.DrawRectangleOutline(position, size, Grid);
         DrawCursor(ui, position, size);
-        DrawChannelScales(ui, position, size);
-        DrawLegend(ui, position + new Vector2(16, 16));
+        labels.DrawScales(ui, VisibleChannels.ToArray(), position, size);
+        labels.DrawLegend(ui, VisibleChannels.ToArray(), cursor, position, size);
         if (ShowOverview)
         {
             DrawOverview(ui);
-        }
-    }
-
-    private void DrawChannelScales(FishUI.FishUI ui, Vector2 position, Vector2 size)
-    {
-        int column = 0;
-        var visible = VisibleChannels.OrderByDescending(channel => channel.RightAxis).ToArray();
-        float left = position.X + size.X - visible.Length * 60 - 8;
-        if (visible.Length > 0)
-        {
-            ui.Graphics.DrawRectangle(new Vector2(left - 4, position.Y + 4),
-                new Vector2(visible.Length * 60 + 8, 36), Background);
-            ui.Graphics.DrawRectangle(new Vector2(left - 4, position.Y + size.Y - 22),
-                new Vector2(visible.Length * 60 + 8, 18), Background);
-        }
-        foreach (var channel in visible)
-        {
-            float x = left + column * 60;
-            Label(ui, channel.Series.Name.Split(' ')[0], new Vector2(x, position.Y + 7), color: channel.Series.Color);
-            Label(ui, channel.AxisMaximum.ToString("N0", CultureInfo.InvariantCulture),
-                new Vector2(x, position.Y + 23), color: channel.Series.Color);
-            Label(ui, "0", new Vector2(x, position.Y + size.Y - 20), color: channel.Series.Color);
-            column++;
-        }
-    }
-
-    private void DrawLegend(FishUI.FishUI ui, Vector2 position)
-    {
-        var visible = VisibleChannels.ToArray();
-        if (visible.Length == 0)
-        {
-            Label(ui, "No channels configured for this view.", position);
-            return;
-        }
-
-        var legendSize = new Vector2(240, 16 + visible.Length * 22);
-        ui.Graphics.DrawRectangle(position, legendSize, new FishColor(22, 29, 38, 240));
-        ui.Graphics.DrawRectangleOutline(position, legendSize, Grid);
-        for (int index = 0; index < visible.Length; index++)
-        {
-            var channel = visible[index];
-            var row = position + new Vector2(12, 10 + index * 22);
-            ui.Graphics.DrawLine(row + new Vector2(0, 7), row + new Vector2(26, 7), 3, channel.Series.Color);
-            float? value = GraphSamples.ValueAt(channel.Series.Points, cursor);
-            Label(ui, $"{channel.Series.Name}  {value:0.0}", row + new Vector2(36, 0));
         }
     }
 
@@ -156,12 +114,12 @@ internal sealed class TelemetryGraph : Control
                 continue;
             }
 
-            float normalizedValue = Math.Clamp(value.Value / channel.AxisMaximum, 0, 1);
+            float normalizedValue = channel.Normalize(value.Value);
             var center = new Vector2(x, position.Y + (1 - normalizedValue) * size.Y);
 
             // A dark border keeps the marker distinct from the cursor and grid.
             ui.Graphics.DrawCircle(center, 6, Background);
-            ui.Graphics.DrawCircle(center, 4, channel.Series.Color);
+            ui.Graphics.DrawCircle(center, 4, channel.Color);
         }
 
     }
@@ -170,7 +128,7 @@ internal sealed class TelemetryGraph : Control
     {
         var (position, size) = Overview;
         ui.Graphics.DrawRectangle(position, size, new FishColor(26, 34, 43));
-        var preview = channels.FirstOrDefault(channel => channel.RightAxis) ?? channels.FirstOrDefault();
+        var preview = overviewChannel;
         if (preview != null)
         {
             DrawSeries(ui, preview, position, size, 0, duration, new FishColor(150, 165, 182), 1, overview: true);

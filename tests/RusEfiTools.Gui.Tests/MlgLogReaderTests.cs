@@ -72,7 +72,29 @@ public sealed class MlgLogReaderTests
         }
     }
 
-    private static MemoryStream Fixture()
+    [Fact]
+    public void LoadsConfiguredChannelsWithoutRequiringDefaultNames()
+    {
+        using var stream = Fixture("Air: Flow estimate");
+        var log = MlgLogReader.Read(stream, TestContext.Current.CancellationToken,
+            ["air: flow estimate", "Missing", "AIR: FLOW ESTIMATE", "TPS"]);
+        Assert.Equal(["Air: Flow estimate", "TPS"], log.Channels.Select(channel => channel.Name));
+        Assert.Equal(3000, log.Channels[0].Series.Points[1].Y);
+        Assert.Equal(4, log.Sensors.Fields.Count);
+        Assert.Equal(1, log.Sensors.Duration);
+    }
+
+    [Fact]
+    public void MissingConfiguredChannelsStillLoadInspectorDataAndTimeline()
+    {
+        using var stream = Fixture();
+        var log = MlgLogReader.Read(stream, TestContext.Current.CancellationToken, ["Missing"]);
+        Assert.Empty(log.Channels);
+        Assert.Equal(4, log.Sensors.Fields.Count);
+        Assert.Equal(1, log.Sensors.Duration);
+    }
+
+    private static MemoryStream Fixture(string rpmName = "RPM")
     {
         var stream = new MemoryStream();
         byte[] header = new byte[24];
@@ -84,7 +106,7 @@ public sealed class MlgLogReaderTests
         stream.Write(header);
         WriteField("Time", "s", 7, 1, 0);
         WriteField("MAP", "kPa", 2, 0.5f, 10);
-        WriteField("RPM", "RPM", 2, 1, 0);
+        WriteField(rpmName, "RPM", 2, 1, 0);
         WriteField("TPS", "%", 3, 0.5f, 0);
         for (int row = 0; row < 2; row++)
         {

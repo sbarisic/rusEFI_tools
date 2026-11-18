@@ -17,8 +17,8 @@ internal sealed class DesktopApplication
         using var window = new RenderWindow(new RenderWindowOptions
         {
             Title = "rusEFI Tools",
-            Width = 1920,
-            Height = 1080,
+            Width = Configuration.Gui.Window.Width,
+            Height = Configuration.Gui.Window.Height,
             Resizable = true,
             VSync = true
         });
@@ -37,7 +37,7 @@ internal sealed class DesktopApplication
         ui.Init();
         settings.LoadTheme("data/themes/gwen.yaml");
 
-        var view = new MainView(ui);
+        var view = new MainView(ui, Configuration.Gui);
         if (configuration.Error != null)
         {
             view.SetStatus(configuration.Error);

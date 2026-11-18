@@ -29,13 +29,14 @@ internal sealed class LogDropLoader : IDisposable
         cancellation = new CancellationTokenSource();
         var token = cancellation.Token;
         string path = args.Paths[0];
+        string[] channelNames = view.RequestedChannels;
         view.SetStatus($"Loading {Path.GetFileName(path)}…");
         // No UI or OpenGL calls on the worker thread; completion is applied in Tick.
         pending = Task.Run(() =>
         {
             try
             {
-                return new LoadResult(Path.GetFileName(path), MlgLogReader.Load(path, token), null);
+                return new LoadResult(Path.GetFileName(path), MlgLogReader.Load(path, token, channelNames), null);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
                 or InvalidDataException or OperationCanceledException or ArgumentException)

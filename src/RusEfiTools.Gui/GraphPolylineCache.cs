@@ -48,7 +48,7 @@ internal sealed class GraphPolylineCache
 
         Vector2 Project(float x, float y) => position + new Vector2(
             (x - from) / (to - from) * size.X,
-            (1 - Math.Clamp(y / channel.AxisMaximum, 0, 1)) * size.Y);
+            (1 - channel.Normalize(y)) * size.Y);
     }
 
     // Loaded channel samples are immutable; loading another file creates new graph controls.

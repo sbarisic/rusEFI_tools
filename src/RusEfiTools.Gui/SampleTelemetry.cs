@@ -3,7 +3,18 @@ using FishUI.Controls;
 
 namespace RusEfiTools.Gui;
 
-internal sealed record TelemetryChannel(LineChartSeries Series, float AxisMaximum, bool RightAxis);
+internal sealed record TelemetryChannel(LineChartSeries Series, float AxisMaximum, bool RightAxis)
+{
+    public float AxisMinimum { get; init; }
+    public FishColor? ColorOverride { get; init; }
+    public FishColor Color => ColorOverride ?? Series.Color;
+    public string Name { get; init; } = Series.Name.Split(" (")[0];
+    public bool ShowGramsPerSecond { get; init; }
+    private bool ConvertMassFlow => ShowGramsPerSecond && Series.Name.EndsWith(" (kg/h)", StringComparison.OrdinalIgnoreCase);
+    public string DisplayName => ConvertMassFlow ? $"{Name} (g/s)" : Series.Name;
+    public float DisplayValue(float value) => ConvertMassFlow ? value / 3.6f : value;
+    public float Normalize(float value) => Math.Clamp((value - AxisMinimum) / (AxisMaximum - AxisMinimum), 0, 1);
+}
 
 internal static class SampleTelemetry
 {

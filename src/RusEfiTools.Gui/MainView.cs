@@ -8,6 +8,11 @@ internal sealed class MainView
 {
     private const int MaximumGraphs = 4;
     private readonly FishUI.FishUI ui;
+    private readonly GuiConfiguration configuration;
+    private readonly List<GraphConfiguration> graphSettings = [];
+
+    public string[] RequestedChannels => graphSettings.SelectMany(graph => graph.Channels)
+        .Select(channel => channel.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     private TelemetryChannel[] channels = SampleTelemetry.Create();
     private GraphTimeline timeline;
     private readonly List<TelemetryGraph> rows = [];
@@ -18,13 +23,14 @@ internal sealed class MainView
     private int width = 1920;
     private int height = 1080;
 
-    public MainView(FishUI.FishUI ui)
+    public MainView(FishUI.FishUI ui, GuiConfiguration? configuration = null)
     {
         this.ui = ui;
+        this.configuration = configuration ?? new GuiConfiguration();
         timeline = new GraphTimeline(channels.SelectMany(channel => channel.Series.Points).Max(point => point.X));
-        addButton = CreateButton("Add graph", 24, AddGraph);
+        addButton = CreateButton("Add graph", 24, () => AddGraph(this.configuration.Graphs[0]));
         removeButton = CreateButton("Remove last graph", 160, RemoveGraph);
-        status = new Label("Drop an .mlg log or .zip here to load MAP, RPM and TPS")
+        status = new Label("Drop an .mlg log or .zip here to load configured channels")
         {
             Position = Absolute(340, 18),
             Size = new Vector2(1400, 24),
@@ -33,10 +39,14 @@ internal sealed class MainView
         status.SetColorOverride("Text", new FishColor(224, 230, 237));
         ui.AddControl(status);
         sensors = new CursorDataInspector(timeline, channels);
-        ui.AddControl(sensors);
-        AddGraph();
-        AddGraph();
-        rows[1].SetChannelVisible(channels[1], false);
+        if (this.configuration.Inspector.Visible)
+        {
+            ui.AddControl(sensors);
+        }
+        foreach (var graph in this.configuration.Graphs)
+        {
+            AddGraph(graph);
+        }
     }
 
     public void SetStatus(string message)
@@ -46,25 +56,25 @@ internal sealed class MainView
 
     public void Load(LoadedLog log, string name)
     {
-        var visibility = rows.Select(row => channels.Select(row.IsChannelVisible).ToArray()).ToArray();
+        var layouts = graphSettings.ToArray();
         foreach (var row in rows)
         {
             ui.RemoveControl(row);
         }
         rows.Clear();
+        graphSettings.Clear();
         channels = log.Channels;
-        timeline = new GraphTimeline(channels[0].Series.Points[^1].X);
+        timeline = new GraphTimeline(log.Sensors.Duration);
         timeline.Cursor = 0;
         sensors.Bind(timeline, channels, log.Sensors);
-        foreach (var selection in visibility)
+        foreach (var layout in layouts)
         {
-            AddGraph();
-            for (int index = 0; index < channels.Length; index++)
-            {
-                rows[^1].SetChannelVisible(channels[index], selection[index]);
-            }
+            AddGraph(layout);
         }
-        SetStatus($"{name} — {log.Samples:N0} samples, {timeline.Duration:0.0} s — {log.Fields:N0} sensor fields");
+        string[] missing = RequestedChannels.Where(name => !channels.Any(channel =>
+            channel.Name.Equals(name, StringComparison.OrdinalIgnoreCase))).ToArray();
+        string warning = missing.Length == 0 ? "" : $" - Missing channels: {string.Join(", ", missing)}";
+        SetStatus($"{name} - {log.Samples:N0} samples, {timeline.Duration:0.0} s - {log.Fields:N0} sensor fields{warning}");
     }
 
     public void Resize(int width, int height)
@@ -94,19 +104,25 @@ internal sealed class MainView
         return button;
     }
 
-    private void AddGraph()
+    private void AddGraph(GraphConfiguration settings)
     {
         if (rows.Count >= MaximumGraphs)
         {
             return;
         }
 
-        var graph = new TelemetryGraph(channels, timeline)
+        var selected = settings.Channels.Select(setting =>
+        {
+            var source = channels.FirstOrDefault(channel => channel.Name.Equals(setting.Name, StringComparison.OrdinalIgnoreCase));
+            return source == null ? null : setting.Apply(source);
+        }).Where(channel => channel != null).Cast<TelemetryChannel>().ToArray();
+        var preview = channels.FirstOrDefault(channel => channel.RightAxis) ?? channels.FirstOrDefault();        var graph = new TelemetryGraph(selected, timeline, preview)
         {
             ID = $"graph{rows.Count + 1}"
         };
         ui.AddControl(graph);
         rows.Add(graph);
+        graphSettings.Add(settings);
         Layout();
     }
 
@@ -118,6 +134,7 @@ internal sealed class MainView
         }
         ui.RemoveControl(rows[^1]);
         rows.RemoveAt(rows.Count - 1);
+        graphSettings.RemoveAt(graphSettings.Count - 1);
         Layout();
     }
 
@@ -131,7 +148,7 @@ internal sealed class MainView
         }
 
         // Reserve the overview once; all plot areas retain the same height.
-        float panelWidth = Math.Min(440, width * 0.35f);
+        float panelWidth = configuration.Inspector.Visible ? Math.Min(configuration.Inspector.Width, width * 0.35f) : 0;
         sensors.Position = Absolute(width - panelWidth - 24, 56);
         sensors.Size = new Vector2(panelWidth, Math.Max(1, height - 80));
         float rowHeight = Math.Max(120, (height - 80 - 112) / (float)rows.Count);
@@ -142,7 +159,7 @@ internal sealed class MainView
             bool last = index == rows.Count - 1;
             row.ShowOverview = last;
             row.Position = Absolute(24, top);
-            row.Size = new Vector2(Math.Max(1, width - panelWidth - 60), rowHeight + (last ? 112 : 0));
+            row.Size = new Vector2(Math.Max(1, width - panelWidth - (configuration.Inspector.Visible ? 60 : 48)), rowHeight + (last ? 112 : 0));
             top += rowHeight;
         }
     }

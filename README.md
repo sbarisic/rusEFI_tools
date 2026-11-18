@@ -6,7 +6,7 @@ the FishGfx.FishUI adapter.
 
 The resizable window opens at 1920 × 1080 with two stacked telemetry graphs showing
 generated sample MAP, RPM, and TPS data. Use **Add graph** and **Remove last graph**
-to show one to four views. Channel assignments are configured in `MainView`.
+to show one to four views. Channel assignments, colors, and scales are configured in `data_app/Config.json`.
 All views share the cursor, visible time range, and a single bottom overview.
 Each channel has color-matched scale limits inside the plot's right edge.
 Drag the plot cursor to inspect values in the legend.
@@ -17,8 +17,8 @@ direction. Scrolling stops when you release the mouse or reach the data boundary
 Drop one `.mlg` log onto the window to replace the sample data. A `.zip` containing
 exactly one `.mlg` also works without extracting files. The loader supports binary
 [MLVLG v2](https://www.efianalytics.com/TunerStudio/docs/MLG_Binary_LogFormat_2.0.pdf)
-logs with `Time` (seconds), `MAP` (kPa), `RPM` (rpm), and `TPS` (%) fields, including
-the BossECU logs. It plots these three channels. The **Cursor data inspector**
+logs with a `Time` field in seconds, including the BossECU logs. It plots the
+channels named in the configuration. The **Cursor data inspector**
 shows all logged sensor fields at the shared cursor's selected timestamp,
 including fields not plotted. Filter by name or unit and scroll to browse.
 Drag the scrollbar thumb or drag the rows vertically to scroll the inspector.
@@ -31,7 +31,7 @@ Loading runs in the background. Dropping another log cancels the previous load.
 The status line reports loading, completion, or errors; a failed load leaves the
 current graphs intact. Source files are read only and never copied or modified.
 Checksums and record lengths are validated, and time starts at zero for each log.
-All raw samples of the three plotted channels remain in memory; rendering groups
+All raw samples of the configured plotted channels remain in memory; rendering groups
 samples by screen column while preserving peaks to keep long logs practical.
 Other sensor data is retained in compressed memory blocks and decoded on demand;
 only visible inspector rows are drawn, and values are cached until the cursor moves.
@@ -47,15 +47,56 @@ demonstration channels.
 
 The application reads `data_app/Config.json` beside the executable at startup.
 The file is included in build and publish output. Missing files, blank files,
-`{}`, and the existing `_comment` placeholder use empty defaults. Invalid JSON
+`{}`, and the existing `_comment` placeholder use the default two-graph layout. Invalid JSON
 shows an error in the status line and uses defaults without overwriting the file.
 
-Future log settings belong in a `Logs` object. Its values are retained as JSON
-and available through `DesktopApplication.Configuration.Logs`; no log-setting
-behavior is assigned yet. Restart the application after editing the file.
+Edit `src/RusEfiTools.Gui/data_app/Config.json` before building, or edit
+`data_app/Config.json` beside the executable for an existing installation.
+Restart the application after editing. Settings are not automatically saved by
+the Add/Remove graph buttons; Add graph copies the first configured graph.
+
+The included example has three graphs: RPM/MAP, TPS/airflow, and measured/target
+AFR, with a 1920 × 1080 window and a 440px inspector. Both AFR channels use 10–20,
+TPS uses 0–100%, and airflow uses 0–360 kg/h.
+
+- `Gui.Graphs` contains one to four views, in display order. Each view's
+  `Channels` array sets its channels and legend order; an empty array is allowed.
+- `Name` matches the full log field name, ignoring case. It does not use fuzzy
+  matching. Missing channels are skipped and listed in the status line.
+- `Color` is optional `#RRGGBB`. Defaults retain MAP blue, RPM red, and TPS green;
+  other channels use a small color palette.
+- `Min` and `Max` are optional. Omitted limits use the full loaded channel range,
+  which stays fixed while panning. Constant signals get a nonzero range. Explicit
+  limits must have `Min < Max`; values outside the range are clamped to the edge.
+  Colors and limits are independent for each graph, including repeated channels.
+- `ShowGramsPerSecond: true` displays kg/h channels as g/s in the graph legend
+  and scale labels (divide by 3.6). `Min` and `Max` remain in the original log
+  units: 0–360 kg/h displays as 0–100 g/s. The default is `false`. Other source
+  units are unaffected; raw data and the inspector retain the logged units.
+- `Gui.Window` sets initial `Width` and `Height` (minimum 640 × 480).
+- `Gui.Inspector` sets `Visible` and `Width` (minimum 200px, capped at 35% of the
+  actual window width). Hidden inspectors give the space back to the graphs.
+- All graphs share the same cursor and timeline. Before a log loads, only the
+  generated MAP/RPM/TPS demonstration channels are available.
+
+Invalid settings show an error and use defaults without rewriting your file.
+Future log settings belong in `Logs`; these values are retained as JSON but do
+not change loading behavior yet.
+
+For example, a single graph with custom limits:
 
 ```json
 {
+  "Gui": {
+    "Graphs": [
+      {
+        "Channels": [
+          { "Name": "RPM", "Color": "#FF4E4E", "Min": 500, "Max": 7500 },
+          { "Name": "Air: Flow estimate", "Color": "#FFC857" }
+        ]
+      }
+    ]
+  },
   "Logs": {}
 }
 ```
